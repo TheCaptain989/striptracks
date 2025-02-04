@@ -258,13 +258,18 @@ Modifier|Function
 ---|---
 `f`|Selects only tracks with the forced flag set
 `d`|Selects only tracks with the default flag set
+`[0-9]`|Specifies the maximum number of tracks to select.<br/>Based on the order of the tracks in the original source video.
 
-These modifiers must be applied to each language code you wish.  They may be applied to either audio or subtitles codes.  
-For example, the following options, `--audio :org:any+d --subs :eng:any+f` would keep:  
+These modifiers must be applied to each language code you want to modify.  They may be used with either audio or subtitles codes.  
+For example, the following options, `--audio :org:any+d --subs :eng+1:any+f` would keep:  
 - All original language audio tracks, and all Default audio tracks regardless of language
-- All English language subtitles tracks, and all Forced subtitles tracks regardless of language
+- One English language subtitles track, and all Forced subtitles tracks regardless of language
 
-Modifiers can be combined, such as `:any+fd` to keep all forced and all default tracks.
+Modifiers may be combined, such as `:any+fd` to keep all forced and all default tracks, or `:eng+1d` to keep one default English track.
+
+> [!NOTE]
+> Note the exact phrasing of the previous sentence.  There is nuance here that is not obvious.  
+> `:any+fd` is equivalent to `:any+f:any+d`, but `:eng+1d` is **not** the same as `:eng+1:eng+d`.
 
 ### Any language code
 The `:any` language code is a special code. When used, the script will preserve all language tracks, regardless of how they are tagged in the source video.
@@ -301,13 +306,18 @@ There is no way to force the script to remove audio tracks with these codes.
 -a :eng:und -s :eng               # Keep English and Unknown audio, and English subtitles
 -a :org:eng -s :any+f:eng         # Keep English and Original audio, and all forced or English subtitles
 -a :eng -s ""                     # Keep English audio and remove all subtitles
--d -a :eng:kor:jpn -s :eng:spa    # Enable debugging level 1, keeping English, Korean, and Japanese audio, and
-                                  # English and Spanish subtitles
+-a :any -s ""                     # Keep all audio and remove all subtitles
+-d -a :eng:kor:jpn -s :eng:spa    # Enable debugging level 1, keeping English, Korean, and Japanese audio,
+                                  # and English and Spanish subtitles
 -f "/movies/Finding Nemo (2003).mkv" -a :eng:und -s :eng
                                   # Batch Mode
                                   # Keep English and Unknown audio and English subtitles, converting
                                   # video specified
--a :any -s ""                     # Keep all audio and remove all subtitles
+--audio :org:any+d1 --subs :eng+1:any+f2
+                                  # Keep Original audio and one default audio track regardless of language
+                                  # (first audio track flagged as Default as it appears in the source file),
+                                  # one English subtitles track and two forced subtitles regardless of
+                                  # language (as they appear in the source file)
 ```
 
 </details>
@@ -453,7 +463,7 @@ Log rotation is performed with 5 log files of 512KB each being kept.
 
 # Limitations
 It should be noted that this script's core functionality nulifies some of the benefits of [hardlinks](https://trash-guides.info/hardlinks/).
-However, hardlinks are still recommended.
+However, configuring hardlinks is still recommended.
 
 <details>
 <summary>Hardlink Limitations</summary>
@@ -461,16 +471,19 @@ However, hardlinks are still recommended.
 *Radarr Hardlinks Configuration Screenshot*
 ![radarr-enable-hardlinks](./.assets/radarr-enable-hardlinks.png "Radarr hardlinks screenshot")
 
+Hardlinks are essentially multiple references to the *same file*.
 The purpose of a hardlink is to:
 - Allow instant file moves from the download client to Radarr or Sonarr
 - Reduce duplicate storage space
 - Allow torrent seeding after download
 
-Because the script creates a brand-new video file that includes only the selected streams and deletes the original, the concept of a hardlink doesn't make sense.
-Instant file moves from your download client should continue to work, but the new file will consume additional space, and the original file will be deleted by
-the script which will likely prevent torrent seeding.
+Because the script creates a brand-new video file that includes only the selected streams and deletes the original, a hardlink cannot be preserved.
+Instant file moves from your download client will continue to work, but the new file will consume additional space, and the original file will be deleted (or unlinked) by
+the script which could prevent torrent seeding.
 
-Note that the script does not *always* create a new file.  If there are no streams removed, the original video file is not deleted and therefore any hardlinks are preserved.
+The script will log a warning if it detects the input video is a hardlink.
+
+Note that the script does not *always* create a new file.  If there are no streams removed, the original video file is not deleted and any hardlinks are preserved.
 It is therefore still recommended to enable and use hardlinks in Radarr and Sonarr.
 
 </details>
@@ -493,7 +506,7 @@ This would not be possible without the following:
 [LinuxServer.io Sonarr](https://hub.docker.com/r/linuxserver/sonarr "Sonarr Docker container") container  
 [LinuxServer.io Docker Mods](https://hub.docker.com/r/linuxserver/mods "Docker Mods containers") project  
 [MKVToolNix](https://mkvtoolnix.download/ "MKVToolNix homepage") by Moritz Bunkus  
-The AWK script parsing mkvmerge output is adapted from Endoro's post on [VideoHelp](https://forum.videohelp.com/threads/343271-BULK-remove-non-English-tracks-from-MKV-container#post2292889).  
+Inspired by Endoro's post on [VideoHelp](https://forum.videohelp.com/threads/343271-BULK-remove-non-English-tracks-from-MKV-container#post2292889).  
 Icons made by [Freepik](https://www.freepik.com) from [Flaticon](https://www.flaticon.com/)
 
 ## Legacy Change Notes

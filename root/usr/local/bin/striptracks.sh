@@ -34,12 +34,12 @@
 #  1 - no video file specified on command line
 #  2 - no audio language specified on command line
 #  3 - no subtitles language specified on command line
-#  4 - mkvmerge or mkvpropedit not found
+#  4 - mkvmerge, mkvpropedit, or jq not found
 #  5 - input video file not found
 #  6 - unable to rename temp video to MKV
 #  7 - unknown eventtype environment variable
 #  8 - unsupported Radarr/Sonarr version (v2)
-#  9 - mkvmerge get media info failed
+#  9 - mkvmerge get media info produced an error or warning
 # 10 - remuxing completed, but no output file found
 # 11 - source video had no audio tracks
 # 12 - log file is not writable
@@ -109,8 +109,8 @@ audio or subtitle languages configured in the Radarr or Sonarr profile.  When
 used on the command line, they override the detected codes.  They are also
 accepted as positional parameters for backwards compatibility.
 
-Language modifiers may be \`f\` or \`d\` which select Forced or Default
-tracks respectively.
+Language modifiers may be \`f\` or \`d\` which select Forced or Default tracks
+respectively, or a number which specifies the maximum tracks to keep.
 
 Batch Mode:
   In batch mode the script acts as if it were not called from within Radarr
@@ -158,7 +158,7 @@ if [ -n "$STRIPTRACKS_ARGS" ]; then
 fi
 
 # Process arguments
-# Taken from Drew Strokes post 3/24/2015:
+# Taken from Drew Stokes post 3/24/2015:
 #  https://medium.com/@Drew_Stokes/bash-argument-parsing-54f3b81a6a8f
 unset striptracks_pos_params
 while (( "$#" )); do
@@ -182,11 +182,11 @@ while (( "$#" )); do
         exit 1
       fi
     ;;
-    --help ) # Display usage
+    -h|--help ) # Display usage
       usage
       exit 0
     ;;
-    --version ) # Display version
+    -v|--version ) # Display version
       echo "$striptracks_script $striptracks_ver"
       exit 0
     ;;
@@ -203,24 +203,30 @@ while (( "$#" )); do
       fi
     ;;
     -a|--audio ) # Audio languages to keep
-      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-        export striptracks_audiokeep="$2"
-        shift 2
-      else
+      if [ -z "$2" ] || [ ${2:0:1} = "-" ]; then
         echo "Error|Invalid option: $1 requires an argument." >&2
         usage
         exit 2
+      elif [[ "$2" != :* ]]; then
+        echo "Error|Invalid option: $1 argument requires a colon." >&2
+        usage
+        exit 2
       fi
+      export striptracks_audiokeep="$2"
+      shift 2
     ;;
-    -s|--subs ) # Subtitles languages to keep
-      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-        export striptracks_subskeep="$2"
-        shift 2
-      else
+    -s|--subs|--subtitles ) # Subtitles languages to keep
+      if [ -z "$2" ] || [ ${2:0:1} = "-" ]; then
         echo "Error|Invalid option: $1 requires an argument." >&2
         usage
         exit 3
+      elif [[ "$2" != :* ]]; then
+        echo "Error|Invalid option: $1 argument requires a colon." >&2
+        usage
+        exit 3
       fi
+      export striptracks_subskeep="$2"
+      shift 2
     ;;
     -c|--config ) # *arr XML configuration file
       if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
@@ -321,7 +327,7 @@ export striptracks_eventtype="${striptracks_type,,}_eventtype"
 export striptracks_newvideo="${striptracks_video%.*}.mkv"
 # If this were defined directly in Radarr or Sonarr this would not be needed here
 # shellcheck disable=SC2089
-striptracks_isocodemap='{"languages":[{"language":{"name":"Any","iso639-2":["any"]}},{"language":{"name":"Arabic","iso639-2":["ara"]}},{"language":{"name":"Bengali","iso639-2":["ben"]}},{"language":{"name":"Bosnian","iso639-2":["bos"]}},{"language":{"name":"Bulgarian","iso639-2":["bul"]}},{"language":{"name":"Catalan","iso639-2":["cat"]}},{"language":{"name":"Chinese","iso639-2":["zho","chi"]}},{"language":{"name":"Croatian","iso639-2":["hrv"]}},{"language":{"name":"Czech","iso639-2":["ces","cze"]}},{"language":{"name":"Danish","iso639-2":["dan"]}},{"language":{"name":"Dutch","iso639-2":["nld","dut"]}},{"language":{"name":"English","iso639-2":["eng"]}},{"language":{"name":"Estonian","iso639-2":["est"]}},{"language":{"name":"Finnish","iso639-2":["fin"]}},{"language":{"name":"Flemish","iso639-2":["nld","dut"]}},{"language":{"name":"French","iso639-2":["fra","fre"]}},{"language":{"name":"German","iso639-2":["deu","ger"]}},{"language":{"name":"Greek","iso639-2":["ell","gre"]}},{"language":{"name":"Hebrew","iso639-2":["heb"]}},{"language":{"name":"Hindi","iso639-2":["hin"]}},{"language":{"name":"Hungarian","iso639-2":["hun"]}},{"language":{"name":"Icelandic","iso639-2":["isl","ice"]}},{"language":{"name":"Indonesian","iso639-2":["ind"]}},{"language":{"name":"Italian","iso639-2":["ita"]}},{"language":{"name":"Japanese","iso639-2":["jpn"]}},{"language":{"name":"Kannada","iso639-2":["kan"]}},{"language":{"name":"Korean","iso639-2":["kor"]}},{"language":{"name":"Latvian","iso639-2":["lav"]}},{"language":{"name":"Lithuanian","iso639-2":["lit"]}},{"language":{"name":"Macedonian","iso639-2":["mac","mkd"]}},{"language":{"name":"Malayalam","iso639-2":["mal"]}},{"language":{"name":"Norwegian","iso639-2":["nno","nob","nor"]}},{"language":{"name":"Persian","iso639-2":["fas","per"]}},{"language":{"name":"Polish","iso639-2":["pol"]}},{"language":{"name":"Portuguese","iso639-2":["por"]}},{"language":{"name":"Portuguese (Brazil)","iso639-2":["por"]}},{"language":{"name":"Romanian","iso639-2":["rum","ron"]}},{"language":{"name":"Russian","iso639-2":["rus"]}},{"language":{"name":"Serbian","iso639-2":["srp"]}},{"language":{"name":"Slovak","iso639-2":["slk","slo"]}},{"language":{"name":"Slovenian","iso639-2":["slv"]}},{"language":{"name":"Spanish","iso639-2":["spa"]}},{"language":{"name":"Spanish (Latino)","iso639-2":["spa"]}},{"language":{"name":"Swedish","iso639-2":["swe"]}},{"language":{"name":"Tamil","iso639-2":["tam"]}},{"language":{"name":"Telugu","iso639-2":["tel"]}},{"language":{"name":"Thai","iso639-2":["tha"]}},{"language":{"name":"Turkish","iso639-2":["tur"]}},{"language":{"name":"Ukrainian","iso639-2":["ukr"]}},{"language":{"name":"Vietnamese","iso639-2":["vie"]}},{"language":{"name":"Unknown","iso639-2":["und"]}}]}'
+striptracks_isocodemap='{"languages":[{"language":{"name":"Any","iso639-2":["any"]}},{"language":{"name":"Afrikaans","iso639-2":["afr"]}},{"language":{"name":"Albanian","iso639-2":["sqi","alb"]}},{"language":{"name":"Arabic","iso639-2":["ara"]}},{"language":{"name":"Bengali","iso639-2":["ben"]}},{"language":{"name":"Bosnian","iso639-2":["bos"]}},{"language":{"name":"Bulgarian","iso639-2":["bul"]}},{"language":{"name":"Catalan","iso639-2":["cat"]}},{"language":{"name":"Chinese","iso639-2":["zho","chi"]}},{"language":{"name":"Croatian","iso639-2":["hrv"]}},{"language":{"name":"Czech","iso639-2":["ces","cze"]}},{"language":{"name":"Danish","iso639-2":["dan"]}},{"language":{"name":"Dutch","iso639-2":["nld","dut"]}},{"language":{"name":"English","iso639-2":["eng"]}},{"language":{"name":"Estonian","iso639-2":["est"]}},{"language":{"name":"Finnish","iso639-2":["fin"]}},{"language":{"name":"Flemish","iso639-2":["nld","dut"]}},{"language":{"name":"French","iso639-2":["fra","fre"]}},{"language":{"name":"German","iso639-2":["deu","ger"]}},{"language":{"name":"Greek","iso639-2":["ell","gre"]}},{"language":{"name":"Hebrew","iso639-2":["heb"]}},{"language":{"name":"Hindi","iso639-2":["hin"]}},{"language":{"name":"Hungarian","iso639-2":["hun"]}},{"language":{"name":"Icelandic","iso639-2":["isl","ice"]}},{"language":{"name":"Indonesian","iso639-2":["ind"]}},{"language":{"name":"Italian","iso639-2":["ita"]}},{"language":{"name":"Japanese","iso639-2":["jpn"]}},{"language":{"name":"Kannada","iso639-2":["kan"]}},{"language":{"name":"Korean","iso639-2":["kor"]}},{"language":{"name":"Latvian","iso639-2":["lav"]}},{"language":{"name":"Lithuanian","iso639-2":["lit"]}},{"language":{"name":"Macedonian","iso639-2":["mac","mkd"]}},{"language":{"name":"Malayalam","iso639-2":["mal"]}},{"language":{"name":"Marathi","iso639-2":["mar"]}},{"language":{"name":"Norwegian","iso639-2":["nno","nob","nor"]}},{"language":{"name":"Persian","iso639-2":["fas","per"]}},{"language":{"name":"Polish","iso639-2":["pol"]}},{"language":{"name":"Portuguese","iso639-2":["por"]}},{"language":{"name":"Portuguese (Brazil)","iso639-2":["por"]}},{"language":{"name":"Romanian","iso639-2":["rum","ron"]}},{"language":{"name":"Russian","iso639-2":["rus"]}},{"language":{"name":"Serbian","iso639-2":["srp"]}},{"language":{"name":"Slovak","iso639-2":["slk","slo"]}},{"language":{"name":"Slovenian","iso639-2":["slv"]}},{"language":{"name":"Spanish","iso639-2":["spa"]}},{"language":{"name":"Spanish (Latino)","iso639-2":["spa"]}},{"language":{"name":"Swedish","iso639-2":["swe"]}},{"language":{"name":"Tagalog","iso639-2":["tgl"]}},{"language":{"name":"Tamil","iso639-2":["tam"]}},{"language":{"name":"Telugu","iso639-2":["tel"]}},{"language":{"name":"Thai","iso639-2":["tha"]}},{"language":{"name":"Turkish","iso639-2":["tur"]}},{"language":{"name":"Ukrainian","iso639-2":["ukr"]}},{"language":{"name":"Vietnamese","iso639-2":["vie"]}},{"language":{"name":"Unknown","iso639-2":["und"]}}]}'
 
 ### Functions
 
@@ -669,22 +675,32 @@ function set_metadata {
   fi
   return $striptracks_return
 }
-# Read in the output of mkvmerge info extraction
+# Read in the output of mkvmerge info extraction (see issue #87)
 function get_mediainfo {
   [ $striptracks_debug -ge 1 ] && echo "Debug|Executing: /usr/bin/mkvmerge -J \"$1\"" | log
   unset striptracks_json
-  striptracks_json=$(/usr/bin/mkvmerge -J "$1" 2>&1)
-  local striptracks_mkvret=$?; [ $striptracks_mkvret -ne 0 ] && {
-    local striptracks_message="Error|[$striptracks_mkvret] Error executing mkvmerge. It returned: $striptracks_json"
-    echo "$striptracks_message" | log
-    echo "$striptracks_message" >&2
-  }
+  striptracks_json=$(/usr/bin/mkvmerge -J "$1")
+  local striptracks_return=$?
   [ $striptracks_debug -ge 2 ] && echo "mkvmerge returned: $striptracks_json" | awk '{print "Debug|"$0}' | log
-  if [ "$(echo $striptracks_json | jq -crM '.container.supported')" = "true" ]; then
-    local striptracks_return=0
-  else
-    local striptracks_return=1
-  fi
+  case $striptracks_return in
+    0)
+      # Check for unsupported container.
+      if [ "$(echo "$striptracks_json" | jq -crM '.container.supported')" = "false" ]; then
+        striptracks_message="Error|Video format for '$1' is unsupported. Unable to continue. mkvmerge returned container info: $(echo $striptracks_json | jq -crM .container)"
+        echo "$striptracks_message" | log
+        echo "$striptracks_message" >&2
+        end_script 9
+      fi
+    ;;
+    1) striptracks_message=$(echo -e "[$striptracks_return] Warning when inspecting video.\nmkvmerge returned: $(echo "$striptracks_json" | jq -crM '.warnings[]')" | awk '{print "Warn|"$0}')
+      echo "$striptracks_message" | log
+    ;;
+    2) striptracks_message=$(echo -e "[$striptracks_return] Error when inspecting video.\nmkvmerge returned: $(echo "$striptracks_json" | jq -crM '.errors[]')" | awk '{print "Error|"$0}')
+      echo "$striptracks_message" | log
+      echo "$striptracks_message" >&2
+      end_script 9
+    ;;
+  esac
   return $striptracks_return
 }
 # # Import new video into Radarr/Sonarr
@@ -841,7 +857,7 @@ function check_compat {
       echo "$striptracks_message" >&2
     ;;
   esac
-  [ $striptracks_debug -ge 1 ] && echo "Debug|Feature $1 is $([ $striptracks_return -eq 1 ] && echo "not ")compatible with ${striptracks_type^} v${striptracks_arr_version}." | log
+  [ $striptracks_debug -ge 1 ] && echo "Debug|Feature $1 is $([ $striptracks_return -eq 1 ] && echo "not ")compatible with ${striptracks_type^} v${striptracks_arr_version}" | log
   return $striptracks_return
 }
 # Get media management configuration
@@ -869,10 +885,10 @@ function get_media_config {
 # Update file metadata in Radarr/Sonarr
 function set_video_info {
   local url="$striptracks_api_url/$striptracks_video_api/$striptracks_video_id"
-  local data="$(echo $striptracks_videoinfo | jq -crM .monitored='true')"
+  local data="$(echo $striptracks_videoinfo | jq -crM .monitored="$striptracks_videomonitored")"
   local i=0
   for ((i=1; i <= 5; i++)); do
-    [ $striptracks_debug -ge 1 ] && echo "Debug|Updating monitored to 'true'. Calling ${striptracks_type^} API using PUT and URL '$url' with data $data" | log
+    [ $striptracks_debug -ge 1 ] && echo "Debug|Updating monitored to '$striptracks_videomonitored'. Calling ${striptracks_type^} API using PUT and URL '$url' with data $data" | log
     unset striptracks_result
     striptracks_result=$(curl -s --fail-with-body -H "X-Api-Key: $striptracks_apikey" \
       -H "Content-Type: application/json" \
@@ -907,12 +923,6 @@ function process_org_code {
   local striptracks_keep_var="$2"  # Variable name, e.g., striptracks_audiokeep or striptracks_subskeep
 
   if [[ "${!striptracks_keep_var}" =~ :org ]]; then
-    # Log debug message if applicable
-    [ "$striptracks_debug" -ge 1 ] && echo "Debug|${striptracks_track_type^} argument ':org' specified. Changing '${!striptracks_keep_var}' to '${!striptracks_keep_var//:org/${striptracks_originalLangCode}}'" | log
-
-    # Replace :org with the original language code
-    declare -g "$striptracks_keep_var=${!striptracks_keep_var//:org/${striptracks_originalLangCode}}"
-
     # Check compatibility
     if [ "${striptracks_type,,}" = "batch" ]; then
       local striptracks_message="Warn|${striptracks_track_type^} argument contains ':org' code, but this is undefined for Batch mode! Unexpected behavior may result."
@@ -923,6 +933,12 @@ function process_org_code {
       echo "$striptracks_message" | log
       echo "$striptracks_message" >&2
     fi
+
+    # Log debug message if applicable
+    [ "$striptracks_debug" -ge 1 ] && echo "Debug|${striptracks_track_type^} argument ':org' specified. Changing '${!striptracks_keep_var}' to '${!striptracks_keep_var//:org/${striptracks_originalLangCode}}'" | log
+
+    # Replace :org with the original language code
+    declare -g "$striptracks_keep_var=${!striptracks_keep_var//:org/${striptracks_originalLangCode}}"
   fi
 }
 # Exit program
@@ -945,7 +961,7 @@ fi
 # Check that the log file exists
 if [ ! -f "$striptracks_log" ]; then
   echo "Info|Creating a new log file: $striptracks_log"
-  touch "$striptracks_log" 2>&1
+  touch "$striptracks_log"
 fi
 
 # Check that the log file is writable
@@ -1015,7 +1031,7 @@ if [[ "${!striptracks_eventtype}" = "Test" ]]; then
   end_script 0
 fi
 
-# First normal log entry (when there are no errors)
+# First normal log entry (when there are no errors) (see issue #61)
 # shellcheck disable=SC2046
 striptracks_filesize=$(stat -c %s "${striptracks_video}" | numfmt --to iec --format "%.3f")
 striptracks_message="Info|${striptracks_type^} event: ${!striptracks_eventtype}, Video: $striptracks_video, Size: $striptracks_filesize"
@@ -1057,10 +1073,10 @@ elif [ -f "$striptracks_arr_config" ]; then
   # Check for localhost
   [[ $striptracks_bindaddress = "*" ]] && striptracks_bindaddress=localhost
 
-  # Strip leading and trailing forward slashes from URL base
+  # Strip leading and trailing forward slashes from URL base (see issue #66)
   striptracks_urlbase="$(echo "$striptracks_urlbase" | sed -re 's/^\/+//; s/\/+$//')"
   
-  # Build URL to Radarr/Sonarr API
+  # Build URL to Radarr/Sonarr API (see issue #57)
   striptracks_api_url="http://$striptracks_bindaddress:$striptracks_port${striptracks_urlbase:+/$striptracks_urlbase}/api/v3"
 
   # Check Radarr/Sonarr version
@@ -1101,7 +1117,7 @@ fi
 
 # Check if source video exists
 if [ ! -f "$striptracks_video" ]; then
-  striptracks_message="Error|Input file not found: \"$striptracks_video\""
+  striptracks_message="Error|Input video file not found: \"$striptracks_video\""
   echo "$striptracks_message" | log
   echo "$striptracks_message" >&2
   end_script 5
@@ -1126,6 +1142,7 @@ elif [ -n "$striptracks_api_url" ]; then
     # Get video profile
     if get_video_info; then
       striptracks_videoinfo="$striptracks_result"
+      striptracks_videomonitored="$(echo "$striptracks_videoinfo" | jq -crM ".monitored")"
       # This is not strictly necessary as this is normally set in the environment. However, this is needed for testing scripts and it doesn't hurt to use the data returned by the API call.
       striptracks_videofile_id="$(echo $striptracks_videoinfo | jq -crM .${striptracks_json_quality_root}.id)"
 
@@ -1146,7 +1163,7 @@ elif [ -n "$striptracks_api_url" ]; then
           striptracks_profileName="$(echo $striptracks_qualityProfiles | jq -crM ".[] | select(.id == $striptracks_profileId).name")"
           striptracks_profileLanguages="$(echo $striptracks_qualityProfiles | jq -cM "[.[] | select(.id == $striptracks_profileId) | .language]")"
           striptracks_languageSource="quality profile"
-          [ $striptracks_debug -ge 1 ] && echo "Debug|Found quality profile '(${striptracks_profileId}) ${striptracks_profileName}'$(check_compat qualitylanguage && echo " with language '$(echo $striptracks_profileLanguages | jq -crM '[.[] | "(\(.id | tostring)) \(.name)"] | join(",")')'")" | log
+          [ $striptracks_debug -ge 1 ] && echo "Debug|Found quality profile '${striptracks_profileName} (${striptracks_profileId})'$(check_compat qualitylanguage && echo " with language '$(echo $striptracks_profileLanguages | jq -crM '[.[] | "\(.name) (\(.id | tostring))"] | join(",")')'")" | log
 
           # Query custom formats if returned language from quality profile is null or -1 (Any)
           if [ -z "$striptracks_profileLanguages" -o "$striptracks_profileLanguages" = "[null]" -o "$(echo $striptracks_profileLanguages | jq -crM '.[].id')" = "-1" ] && check_compat customformat; then
@@ -1188,7 +1205,7 @@ elif [ -n "$striptracks_api_url" ]; then
               # Convert the language codes into language code/name pairs
               striptracks_profileLanguages="$(echo $striptracks_lang_codes | jq -crM "map(select(.id | inside($striptracks_qcf_langcodes)) | {id, name})")"
               striptracks_languageSource="custom format"
-              [ $striptracks_debug -ge 1 ] && echo "Debug|Found custom format language(s) '$(echo $striptracks_profileLanguages | jq -crM '[.[] | "(\(.id | tostring)) \(.name)"] | join(",")')'" | log
+              [ $striptracks_debug -ge 1 ] && echo "Debug|Found custom format language(s) '$(echo $striptracks_profileLanguages | jq -crM '[.[] | "\(.name) (\(.id | tostring))"] | join(",")')'" | log
             else
               [ $striptracks_debug -ge 1 ] && echo "Debug|None of the applied custom formats have language conditions with usable scores." | log
             fi
@@ -1224,7 +1241,7 @@ elif [ -n "$striptracks_api_url" ]; then
           else
             # Final determination of configured languages in profiles or custom formats
             striptracks_profileLangNames="$(echo $striptracks_profileLanguages | jq -crM '[.[].name]')"
-            [ $striptracks_debug -ge 1 ] && echo "Debug|Determined ${striptracks_type^} configured language(s) of '$(echo $striptracks_profileLanguages | jq -crM '[.[] | "(\(.id | tostring)) \(.name)"] | join(",")')' from $striptracks_languageSource" | log
+            [ $striptracks_debug -ge 1 ] && echo "Debug|Determined ${striptracks_type^} configured language(s) of '$(echo $striptracks_profileLanguages | jq -crM '[.[] | "\(.name) (\(.id | tostring))"] | join(",")')' from $striptracks_languageSource" | log
           fi
           
           # Get originalLanguage of video
@@ -1285,7 +1302,6 @@ elif [ -n "$striptracks_api_url" ]; then
     striptracks_exitstatus=17
   }
   if [ "$(echo "$striptracks_result" | jq -crM ".autoUnmonitorPreviouslyDownloaded${striptracks_video_api^}s")" = "true" ]; then
-    striptracks_conf_unmonitor=1
     striptracks_message="Warn|Will compensate for ${striptracks_type^} configuration to unmonitor deleted ${striptracks_video_api}s."
     echo "$striptracks_message" | log
   fi
@@ -1340,31 +1356,33 @@ echo "$striptracks_message" | log
 # Read in the output of mkvmerge info extraction
 # Populates the striptracks_json variable
 get_mediainfo "$striptracks_video"
-striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
-  # Get media info failed
-  if [ "$(echo $striptracks_json | jq -crM '.container.supported')" = "false" ]; then
-    striptracks_message="Error|Container format '$(echo $striptracks_json | jq -crM .container.type)' is unsupported by mkvmerge. Unable to continue."
-  else
-    striptracks_message="Error|mkvmerge error. Unable to continue."
-  fi
-  echo "$striptracks_message" | log
-  echo "$striptracks_message" >&2
-  end_script 9
-}
 
 # Process JSON data from MKVmerge; track selection logic
 striptracks_json_processed=$(echo "$striptracks_json" | jq -jcM --arg AudioKeep "$striptracks_audiokeep" \
 --arg SubsKeep "$striptracks_subskeep" '
-# Parse input string into language rules
-def parse_language_codes($codes):
-  ($codes | split(":")[1:] | map(split("+")) | 
-    {languages: map(select(length == 1) | .[0]),
-     forced_languages: map(select(length > 1 and (.[1] | contains("f"))) | .[0]),
-     default_languages: map(select(length > 1 and (.[1] | contains("d"))) | .[0])}
-  );
+# Parse input string into JSON language rules
+def parse_language_codes(codes):
+  # Supports f, d, and number modifiers (see issues #82 and #86)
+  # -1 default value in language key means to keep unlimited tracks
+  # NOTE: Logic can result in duplicate keys, but jq just uses the last defined key
+  codes | split(":")[1:] | map(split("+") | {lang: .[0], mods: .[1]}) |
+  {languages: map(
+      # Select tracks with no modifiers or only numeric modifiers
+      (select(.mods == null) | {(.lang): -1}),
+      (select(.mods | test("^[0-9]+$")?) | {(.lang): .mods | tonumber})
+    ) | add,
+    forced_languages: map(
+      # Select tracks with f modifier
+      select(.mods | contains("f")?) | {(.lang): ((.mods | scan("[0-9]+") | tonumber) // -1)}
+    ) | add,
+    default_languages: map(
+      # Select tracks with d modifier
+      select(.mods | contains("d")?) | {(.lang): ((.mods | scan("[0-9]+") | tonumber) // -1)}
+    ) | add
+  };
 
-# Language rules for audio and subtitles, adding required audio tracks
-(parse_language_codes($AudioKeep) | .languages += ["mis","zxx"]) as $AudioRules |
+# Language rules for audio and subtitles, adding required audio tracks (see issue #54)
+(parse_language_codes($AudioKeep) | .languages += {"mis":-1,"zxx":-1}) as $AudioRules |
 parse_language_codes($SubsKeep) as $SubsRules |
 
 # Log chapter information
@@ -1373,32 +1391,67 @@ if (.chapters[0].num_entries) then
 else . end |
 
 # Process tracks
-.tracks |= map(
+reduce .tracks[] as $track (
+  # Create object to hold tracks and counters for each reduce iteration
+  # This is what will be output at the end of the reduce loop
+  {"tracks": [], "counters": {"audio": {"normal": {}, "forced": {}, "default": {}}, "subtitles": {"normal": {}, "forced": {}, "default": {}}}};
+
   # Set track language to "und" if null or empty
-  (if (.properties.language == "" or .properties.language == null) then "und" else .properties.language end) as $lang |
-  .striptracks_debug_log = "Debug|Parsing track ID:\(.id) Type:\(.type) Name:\(.properties.track_name) Lang:\($lang) Codec:\(.codec) Default:\(.properties.default_track) Forced:\(.properties.forced_track)" |
+  (if ($track.properties.language == "" or $track.properties.language == null) then "und" else $track.properties.language end) as $track_lang |
+
+  # Initialize counters for each track type and language
+  .counters[$track.type].normal[$track_lang] = (.counters[$track.type].normal[$track_lang] // 0) |
+  if $track.properties.forced_track then .counters[$track.type].forced[$track_lang] = (.counters[$track.type].forced[$track_lang] // 0) else . end |
+  if $track.properties.default_track then .counters[$track.type].default[$track_lang] = (.counters[$track.type].default[$track_lang] // 0) else . end |
+  .counters[$track.type] as $track_counters |
   
-  # Determine keep logic based on type and rules
-  if .type == "video" then
-    .striptracks_keep = true
-  elif .type == "audio" or .type == "subtitles" then
-      .striptracks_log = "\(.id): \($lang) (\(.codec))\(if .properties.track_name then " \"" + .properties.track_name + "\"" else "" end)" |
+  # Add tracks one at a time to output object above
+  .tracks += [
+    $track |
+    .striptracks_debug_log = "Debug|Parsing track ID:\(.id) Type:\(.type) Name:\(.properties.track_name) Lang:\($track_lang) Codec:\(.codec) Default:\(.properties.default_track) Forced:\(.properties.forced_track)" |
+    
+    # Determine keep logic based on type and rules
+    if .type == "video" then
+      .striptracks_keep = true
+    elif .type == "audio" or .type == "subtitles" then
+      .striptracks_log = "\(.id): \($track_lang) (\(.codec))\(if .properties.track_name then " \"" + .properties.track_name + "\"" else "" end)" |
+      # Same logic for both audio and subtitles
       (if .type == "audio" then $AudioRules else $SubsRules end) as $currentRules |
-      if (($currentRules.languages | index("any")) or ($currentRules.languages | index($lang))) then
+      if ($currentRules.languages["any"] == -1 or ($track_counters.normal | add) < $currentRules.languages["any"] or
+          $currentRules.languages[$track_lang] == -1 or $track_counters.normal[$track_lang] < $currentRules.languages[$track_lang]) then
         .striptracks_keep = true
-      elif (.properties.forced_track and (($currentRules.forced_languages | index("any")) or ($currentRules.forced_languages | index($lang)))) then
+      elif (.properties.forced_track and
+            ($currentRules.forced_languages["any"] == -1 or ($track_counters.forced | add) < $currentRules.forced_languages["any"] or
+              $currentRules.forced_languages[$track_lang] == -1 or $track_counters.forced[$track_lang] < $currentRules.forced_languages[$track_lang])) then
         .striptracks_keep = true |
-        .rule = "forced"
-      elif (.properties.default_track and (($currentRules.default_languages | index("any")) or ($currentRules.default_languages | index($lang)))) then
+        .striptracks_rule = "forced"
+      elif (.properties.default_track and
+            ($currentRules.default_languages["any"] == -1 or ($track_counters.default | add) < $currentRules.default_languages["any"] or
+              $currentRules.default_languages[$track_lang] == -1 or $track_counters.default[$track_lang] < $currentRules.default_languages[$track_lang])) then
         .striptracks_keep = true |
-        .rule = "default"
+        .striptracks_rule = "default"
       else . end |
-    if .striptracks_keep then
-      .striptracks_log = "Info|Keeping \(if .rule then .rule + " " else "" end)\(.type) track " + .striptracks_log
-    else
-      .striptracks_keep = false
-    end
-  else . end
+      if .striptracks_keep then
+        .striptracks_log = "Info|Keeping \(if .striptracks_rule then .striptracks_rule + " " else "" end)\(.type) track " + .striptracks_log
+      else
+        .striptracks_keep = false
+      end
+    else . end
+  ] | 
+  
+  # Increment counters for each track type and language
+  .counters[$track.type].normal[$track_lang] +=
+    if .tracks[-1].striptracks_keep then
+      1
+    else 0 end | 
+  .counters[$track.type].forced[$track_lang] +=
+    if ($track.properties.forced_track and .tracks[-1].striptracks_keep) then
+      1
+    else 0 end |
+  .counters[$track.type].default[$track_lang] +=
+    if ($track.properties.default_track and .tracks[-1].striptracks_keep) then
+      1
+    else 0 end
 ) |
 
 # Ensure at least one audio track is kept
@@ -1425,15 +1478,15 @@ else . end |
 # Output simplified dataset
 { striptracks_log, tracks: [ .tracks[] | { id, type, forced: .properties.forced_track, default: .properties.default_track, striptracks_debug_log, striptracks_log, striptracks_keep } ] }
 ')
-[ $striptracks_debug -ge 2 ] && echo "Debug|Track processing returned ${#striptracks_json_processed} bytes." | log
-[ $striptracks_debug -ge 3 ] && echo "Track processing returned: $(echo "$striptracks_json_processed" | jq)" | awk '{print "Debug|"$0}' | log
+[ $striptracks_debug -ge 1 ] && echo "Debug|Track processing returned ${#striptracks_json_processed} bytes." | log
+[ $striptracks_debug -ge 2 ] && echo "Track processing returned: $(echo "$striptracks_json_processed" | jq)" | awk '{print "Debug|"$0}' | log
 
 # Write messages to log
 echo "$striptracks_json_processed" | jq -crM --argjson Debug $striptracks_debug '
-# Log removed tracks
+# Join log messages into one line
 def log_removed_tracks($type):
   if (.tracks | map(select(.type == $type and .striptracks_keep == false)) | length > 0) then
-    "Info|Removed \($type) tracks: " +
+    "Info|Removing \($type) tracks: " +
     (.tracks | map(select(.type == $type and .striptracks_keep == false) | .striptracks_log) | join(", "))
   else empty end;
 
@@ -1447,6 +1500,7 @@ def log_removed_tracks($type):
  (select(.striptracks_keep) | .striptracks_log // empty)
 ),
 
+# Log removed tracks
 log_removed_tracks("audio"),
 log_removed_tracks("subtitles"),
 
@@ -1464,7 +1518,7 @@ if [ "$(echo "$striptracks_json_processed" | jq -crM '.tracks|map(select(.type==
   end_script 11
 fi
 
-# All tracks matched/no tracks removed
+# All tracks matched/no tracks removed (see issues #49 and #89)
 if [ "$(echo "$striptracks_json" | jq -crM '.tracks|map(select(.type=="audio" or .type=="subtitles"))|length')" = "$(echo "$striptracks_json_processed" | jq -crM '.tracks|map(select((.type=="audio" or .type=="subtitles") and .striptracks_keep))|length')" ]; then
   [ $striptracks_debug -ge 1 ] && echo "Debug|No tracks will be removed from video \"$striptracks_video\"" | log
   # Check if already MKV
@@ -1474,7 +1528,7 @@ if [ "$(echo "$striptracks_json" | jq -crM '.tracks|map(select(.type=="audio" or
     echo "$striptracks_message" | log
     striptracks_mkvcommand="/usr/bin/mkvpropedit -q --edit info --set \"title=$striptracks_title\" \"$striptracks_video\""
     [ $striptracks_debug -ge 1 ] && echo "Debug|Executing: $striptracks_mkvcommand" | log
-    striptracks_result=$(eval $striptracks_mkvcommand 2>&1)
+    striptracks_result=$(eval $striptracks_mkvcommand)
     striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
       striptracks_message=$(echo -e "[$striptracks_return] Error when setting video title: \"$striptracks_tempvideo\"\nmkvpropedit returned: $striptracks_result" | awk '{print "Error|"$0}')
       echo "$striptracks_message" | log
@@ -1485,6 +1539,15 @@ if [ "$(echo "$striptracks_json" | jq -crM '.tracks|map(select(.type=="audio" or
   else
     [ $striptracks_debug -ge 1 ] && echo "Debug|Source video is not MKV. Remuxing anyway." | log
   fi
+fi
+
+# Test for hardlinked file (see issue #85)
+striptracks_refcount=$(stat -c %h "$striptracks_video")
+[ $striptracks_debug -ge 1 ] && echo "Debug|Input file has a hard link count of $striptracks_refcount" | log
+if [ "$striptracks_refcount" != "1" ]; then
+  striptracks_message="Warn|Input video file is a hardlink and this will be broken by remuxing."
+  echo "$striptracks_message" | log
+  echo "$striptracks_message" >&2
 fi
 
 # Build argument with kept audio tracks for MKVmerge
@@ -1499,10 +1562,10 @@ else
   striptracks_subsarg="-S"
 fi
 
-# Execute MKVmerge
+# Execute MKVmerge (remux then rename, see issue #46)
 striptracks_mkvcommand="nice /usr/bin/mkvmerge --title \"$striptracks_title\" -q -o \"$striptracks_tempvideo\" $striptracks_audioarg $striptracks_subsarg \"$striptracks_video\""
 [ $striptracks_debug -ge 1 ] && echo "Debug|Executing: $striptracks_mkvcommand" | log
-striptracks_result=$(eval $striptracks_mkvcommand 2>&1)
+striptracks_result=$(eval $striptracks_mkvcommand)
 striptracks_return=$?
 case $striptracks_return in
   1) striptracks_message=$(echo -e "[$striptracks_return] Warning when remuxing video: \"$striptracks_video\"\nmkvmerge returned: $striptracks_result" | awk '{print "Warn|"$0}')
@@ -1514,7 +1577,6 @@ case $striptracks_return in
     end_script 13
   ;;
 esac
-#### END MAIN
 
 # Check for non-empty file
 if [ ! -s "$striptracks_tempvideo" ]; then
@@ -1528,7 +1590,7 @@ fi
 if [ "$(id -u)" -eq 0 ]; then
   # Set owner
   [ $striptracks_debug -ge 1 ] && echo "Debug|Changing owner of file \"$striptracks_tempvideo\"" | log
-  striptracks_result=$(chown --reference="$striptracks_video" "$striptracks_tempvideo" 2>&1)
+  striptracks_result=$(chown --reference="$striptracks_video" "$striptracks_tempvideo")
   striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
     striptracks_message=$(echo -e "[$striptracks_return] Error when changing owner of file: \"$striptracks_tempvideo\"\nchown returned: $striptracks_result" | awk '{print "Error|"$0}')
     echo "$striptracks_message" | log
@@ -1540,7 +1602,7 @@ else
   [ $striptracks_debug -ge 1 ] && echo "Debug|Unable to change owner of file when running as user '$(id -un)'" | log
 fi
 # Set permissions
-striptracks_result=$(chmod --reference="$striptracks_video" "$striptracks_tempvideo" 2>&1)
+striptracks_result=$(chmod --reference="$striptracks_video" "$striptracks_tempvideo")
 striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
   striptracks_message=$(echo -e "[$striptracks_return] Error when changing permissions of file: \"$striptracks_tempvideo\"\nchmod returned: $striptracks_result" | awk '{print "Error|"$0}')
   echo "$striptracks_message" | log
@@ -1551,7 +1613,7 @@ striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
 # Just delete the original video if running in batch mode
 if [ "$striptracks_type" = "batch" ]; then
   [ $striptracks_debug -ge 1 ] && echo "Debug|Deleting: \"$striptracks_video\"" | log
-  striptracks_result=$(rm "$striptracks_video" 2>&1)
+  striptracks_result=$(rm "$striptracks_video")
   striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
     striptracks_message=$(echo -e "[$striptracks_return] Error when deleting video: \"$striptracks_video\"\nrm returned: $striptracks_result" | awk '{print "Error|"$0}')
     echo "$striptracks_message" | log
@@ -1569,7 +1631,7 @@ else
   }
 fi
 
-# Another check for the temporary file, to make sure it wasn't deleted
+# Another check for the temporary file, to make sure it wasn't deleted (see issue #65)
 if [ ! -f "$striptracks_tempvideo" ]; then
   striptracks_message="Error|${striptracks_type^} deleted the temporary remuxed file: \"$striptracks_tempvideo\".  Halting."
   echo "$striptracks_message" | log
@@ -1579,7 +1641,7 @@ fi
 
 # Rename the temporary video file to MKV
 [ $striptracks_debug -ge 1 ] && echo "Debug|Renaming \"$striptracks_tempvideo\" to \"$striptracks_newvideo\"" | log
-striptracks_result=$(mv -f "$striptracks_tempvideo" "$striptracks_newvideo" 2>&1)
+striptracks_result=$(mv -f "$striptracks_tempvideo" "$striptracks_newvideo")
 striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
   striptracks_message=$(echo -e "[$striptracks_return] Unable to rename temp video: \"$striptracks_tempvideo\" to: \"$striptracks_newvideo\".  Halting.\nmv returned: $striptracks_result" | awk '{print "Error|"$0}')
   echo "$striptracks_message" | log
@@ -1587,10 +1649,12 @@ striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
   end_script 6
 }
 
+# Get file size (see issue #61)
 # shellcheck disable=SC2046
 striptracks_filesize=$(stat -c %s "${striptracks_newvideo}" | numfmt --to iec --format "%.3f")
 striptracks_message="Info|New size: $striptracks_filesize"
 echo "$striptracks_message" | log
+#### END MAIN
 
 #### Call Radarr/Sonarr API to RescanMovie/RescanSeries
 # Check for URL
@@ -1654,11 +1718,11 @@ elif [ -n "$striptracks_api_url" ]; then
         striptracks_videofile_id="$(echo $striptracks_videoinfo | jq -crM .${striptracks_json_quality_root}.id)"
         [ $striptracks_debug -ge 1 ] && echo "Debug|Using new video file id '$striptracks_videofile_id'" | log
 
-        # Check if video is unmonitored after the delete/import
-        if [ ${striptracks_conf_unmonitor:-0} -eq 1 -a "$(echo "$striptracks_videoinfo" | jq -crM ".monitored")" = "false" ]; then
-          striptracks_message="Warn|'$striptracks_title' is unmonitored after deleting the original video.  Compensating for ${striptracks_type^} configuration."
+        # Check if video monitored status changed after the delete/import (see issues #87 and #90)
+        if [ "$(echo "$striptracks_videoinfo" | jq -crM ".monitored")" != "$striptracks_videomonitored" ]; then
+          striptracks_message="Warn|Video monitor status changed after deleting the original.  Setting it back to '$striptracks_videomonitored'"
           echo "$striptracks_message" | log
-          # Set video to monitored again
+          # Set video monitor state
           set_video_info
         fi
 
@@ -1688,76 +1752,70 @@ elif [ -n "$striptracks_api_url" ]; then
           # If we stripped out other languages, remove them
           # Only works in Radarr and Sonarr v4 (no per-episode edit function in Sonarr v3)
           [ $striptracks_debug -ge 1 ] && echo "Debug|Getting languages in new video file \"$striptracks_newvideo\"" | log
-          if get_mediainfo "$striptracks_newvideo"; then
-            # Build array of full name languages
-            striptracks_newvideo_langcodes="$(echo $striptracks_json | jq -crM '.tracks[] | select(.type == "audio") | .properties.language')"
-            unset striptracks_newvideo_languages
-            for i in $striptracks_newvideo_langcodes; do
-              # shellcheck disable=SC2090
-              # Exclude Any, Original, and Unknown
-              striptracks_newvideo_languages+="$(echo $striptracks_isocodemap | jq -crM ".languages[] | .language | select((.\"iso639-2\"[]) == \"$i\") | select(.name != \"Any\" and .name != \"Original\" and .name != \"Unknown\").name")"
-            done
-            if [ -n "$striptracks_newvideo_languages" ]; then
-              # Covert to standard JSON
-              striptracks_json_languages="$(echo $striptracks_lang_codes | jq -crM "map(select(.name | inside(\"$striptracks_newvideo_languages\")) | {id, name})")"
-              
-              # Check languages for Radarr and Sonarr v4
-              # Sooooo glad I did it this way
-              if [ "$(echo $striptracks_videofile_info | jq -crM .languages)" != "null" ]; then
-                if [ "$(echo $striptracks_videofile_info | jq -crM .languages)" != "$striptracks_json_languages" ]; then
-                  if set_radarr_language; then
-                    striptracks_exitstatus=0
-                  else
-                    striptracks_message="Error|${striptracks_type^} error when updating video language(s)."
-                    echo "$striptracks_message" | log
-                    echo "$striptracks_message" >&2
-                    striptracks_exitstatus=17
-                  fi
+          get_mediainfo "$striptracks_newvideo"
+
+          # Build array of full name languages
+          striptracks_newvideo_langcodes="$(echo $striptracks_json | jq -crM '.tracks[] | select(.type == "audio") | .properties.language')"
+          unset striptracks_newvideo_languages
+          for i in $striptracks_newvideo_langcodes; do
+            # shellcheck disable=SC2090
+            # Exclude Any, Original, and Unknown
+            striptracks_newvideo_languages+="$(echo $striptracks_isocodemap | jq -crM ".languages[] | .language | select((.\"iso639-2\"[]) == \"$i\") | select(.name != \"Any\" and .name != \"Original\" and .name != \"Unknown\").name")"
+          done
+          if [ -n "$striptracks_newvideo_languages" ]; then
+            # Covert to standard JSON
+            striptracks_json_languages="$(echo $striptracks_lang_codes | jq -crM "map(select(.name | inside(\"$striptracks_newvideo_languages\")) | {id, name})")"
+            
+            # Check languages for Radarr and Sonarr v4
+            # Sooooo glad I did it this way
+            if [ "$(echo $striptracks_videofile_info | jq -crM .languages)" != "null" ]; then
+              if [ "$(echo $striptracks_videofile_info | jq -crM .languages)" != "$striptracks_json_languages" ]; then
+                if set_radarr_language; then
+                  striptracks_exitstatus=0
                 else
-                  # The languages are already correct
-                  [ $striptracks_debug -ge 1 ] && echo "Debug|Language(s) '$(echo $striptracks_json_languages | jq -crM "[.[].name] | join(\",\")")' remained unchanged." | log
-                fi
-              # Check languages for Sonarr v3 and earlier
-              elif [ "$(echo $striptracks_videofile_info | jq -crM .language)" != "null" ]; then
-                if [ "$(echo $striptracks_videofile_info | jq -crM .language)" != "$(echo $striptracks_json_languages | jq -crM '.[0]')" ]; then
-                  if set_sonarr_language; then
-                    striptracks_exitstatus=0
-                  else
-                    striptracks_message="Error|${striptracks_type^} error when updating video language(s)."
-                    echo "$striptracks_message" | log
-                    echo "$striptracks_message" >&2
-                    striptracks_exitstatus=17
-                  fi
-                else
-                  # The languages are already correct
-                  [ $striptracks_debug -ge 1 ] && echo "Debug|Language '$(echo $striptracks_json_languages | jq -crM ".[0].name")' remained unchanged." | log
+                  striptracks_message="Error|${striptracks_type^} error when updating video language(s)."
+                  echo "$striptracks_message" | log
+                  echo "$striptracks_message" >&2
+                  striptracks_exitstatus=17
                 fi
               else
-                # Some unknown JSON formatting
-                striptracks_message="Warn|The '$striptracks_videofile_api' API returned unknown JSON language node."
-                echo "$striptracks_message" | log
-                echo "$striptracks_message" >&2
-                striptracks_exitstatus=20
+                # The languages are already correct
+                [ $striptracks_debug -ge 1 ] && echo "Debug|Language(s) '$(echo $striptracks_json_languages | jq -crM "[.[].name] | join(\",\")")' remained unchanged." | log
               fi
-            elif [ "$striptracks_newvideo_langcodes" = "und" ]; then
-              # Only language detected is Unknown
-              echo "Warn|The only audio language in the video file was Unknown (und). Not updating ${striptracks_type^} database." | log
+            # Check languages for Sonarr v3 and earlier
+            elif [ "$(echo $striptracks_videofile_info | jq -crM .language)" != "null" ]; then
+              if [ "$(echo $striptracks_videofile_info | jq -crM .language)" != "$(echo $striptracks_json_languages | jq -crM '.[0]')" ]; then
+                if set_sonarr_language; then
+                  striptracks_exitstatus=0
+                else
+                  striptracks_message="Error|${striptracks_type^} error when updating video language(s)."
+                  echo "$striptracks_message" | log
+                  echo "$striptracks_message" >&2
+                  striptracks_exitstatus=17
+                fi
+              else
+                # The languages are already correct
+                [ $striptracks_debug -ge 1 ] && echo "Debug|Language '$(echo $striptracks_json_languages | jq -crM ".[0].name")' remained unchanged." | log
+              fi
             else
-              # Video language not in striptracks_isocodemap
-              striptracks_message="Warn|Video language code(s) '${striptracks_newvideo_langcodes//$'\n'/,}' not found in the ISO Codemap. Cannot evaluate."
+              # Some unknown JSON formatting
+              striptracks_message="Warn|The '$striptracks_videofile_api' API returned unknown JSON language node."
               echo "$striptracks_message" | log
               echo "$striptracks_message" >&2
               striptracks_exitstatus=20
             fi
+          elif [ "$striptracks_newvideo_langcodes" = "und" ]; then
+            # Only language detected is Unknown
+            echo "Warn|The only audio language in the video file was 'Unknown (und)'. Not updating ${striptracks_type^} database." | log
           else
-            # Get media info failed
-            striptracks_message="Error|Could not get media info from new video file. Can't check resulting languages."
+            # Video language not in striptracks_isocodemap
+            striptracks_message="Warn|Video language code(s) '${striptracks_newvideo_langcodes//$'\n'/,}' not found in the ISO Codemap. Cannot evaluate."
             echo "$striptracks_message" | log
             echo "$striptracks_message" >&2
-            striptracks_exitstatus=9
+            striptracks_exitstatus=20
           fi
 
-          # Get list of videos that could be renamed
+          # Get list of videos that could be renamed (see issue #50)
           get_rename
           striptracks_return=$?; [ $striptracks_return -ne 0 ] && {
             striptracks_message="Warn|[$striptracks_return] ${striptracks_type^} error when getting list of videos to rename."
